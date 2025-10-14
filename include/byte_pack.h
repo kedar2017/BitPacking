@@ -4,7 +4,6 @@
 
 int out_bytes_needed (int bit_width, int num) {
     int num_bytes_needed = ((bit_width * num) + 7) >> 3;
-    std::cout << "num_bytes_needed " << num_bytes_needed << " \n";
     return num_bytes_needed;
 }
 
