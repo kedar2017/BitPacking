@@ -1,6 +1,11 @@
 #include "../include/byte_pack.h"
 #include <vector>
 #include <random>
+#include <chrono>
+#include <cstring>
+
+using clk = std::chrono::steady_clock;
+
 
 bool randomness_test (int bit_width, int in_num, int seed = 12345) {
     std::mt19937 rng(seed);
@@ -25,6 +30,27 @@ bool pattern_test (std::vector<uint32_t>& patterned_input, int bit_width) {
     byte_unpack(packed.data(), out.data(), bit_width, patterned_input.size());
 
     return patterned_input == out;
+}
+
+void wall_time_compare_memcpy (std::vector<uint32_t>& patterned_input, std::vector<uint32_t>& bit_widths) {
+    std::vector<uint32_t> packed(patterned_input.size(), 0);
+    for (uint32_t bw: bit_widths) {
+        for (int i = 0; i < 1000000; i++) {
+            memcpy(packed.data(), patterned_input.data(), patterned_input.size() * sizeof(uint32_t));
+            memcpy(patterned_input.data(), packed.data(), patterned_input.size() * sizeof(uint32_t));
+        }
+    }
+}
+
+void wall_time_compare_cache_resident (std::vector<uint32_t>& patterned_input, std::vector<uint32_t>& bit_widths) {
+    for (uint32_t bw: bit_widths) {
+        int out_num = out_bytes_needed(bw, patterned_input.size());
+        std::vector<uint8_t> packed(out_num, 0);
+        for (int i = 0; i < 1000000; i++) {
+            byte_pack(patterned_input.data(), packed.data(), bw, patterned_input.size(), out_num);
+            byte_unpack(packed.data(), patterned_input.data(), bw, patterned_input.size());
+        }
+    }
 }
 
 int main () {
@@ -57,4 +83,31 @@ int main () {
     }
 
     std::cout << "Correctness tests passed!! \n";
+
+    std::vector<uint32_t> const_pattern(35, 1);
+    auto t0 = clk::now();
+    wall_time_compare_cache_resident (const_pattern, bit_widths);
+    auto t1 = clk::now();
+    double wall_time_cache_resident = std::chrono::duration<double, std::milli>(t1 - t0).count();
+
+    uint32_t pack_unpack_bytes_touched = 0;
+    double pack_unpack_memory_throughput = 0;
+
+    for (uint32_t bw: bit_widths) {
+        pack_unpack_bytes_touched += (sizeof(uint32_t) * const_pattern.size() * 2 + 2 * out_bytes_needed(bw, const_pattern.size()));
+    }
+
+    pack_unpack_memory_throughput = (pack_unpack_bytes_touched * 1000) / (wall_time_cache_resident);
+
+    std::vector<uint32_t> const_pattern_memcpy(35, 1);
+    auto t2 = clk::now();
+    wall_time_compare_memcpy (const_pattern_memcpy, bit_widths);
+    auto t3 = clk::now();
+    double wall_time_memcpy = std::chrono::duration<double, std::milli>(t3 - t2).count();
+
+    double memcpy_memory_throughput = 0;
+    memcpy_memory_throughput = (4 * sizeof(uint32_t) * const_pattern_memcpy.size() * 1000) / wall_time_memcpy;
+
+    std::cout << "Memory throughput (pack/unpack): " << pack_unpack_memory_throughput << " \n";
+    std::cout << "Memory throughput (memcpy): " << memcpy_memory_throughput << " \n";    
 }
