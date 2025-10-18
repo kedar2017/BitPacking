@@ -53,6 +53,23 @@ void wall_time_compare_cache_resident (std::vector<uint32_t>& patterned_input, s
     }
 }
 
+void wall_time_large_array_compare_memcpy (std::vector<uint32_t>& patterned_input, std::vector<uint32_t>& bit_widths) {
+    std::vector<uint32_t> packed(patterned_input.size(), 0);
+    for (uint32_t bw: bit_widths) {
+        memcpy(packed.data(), patterned_input.data(), patterned_input.size() * sizeof(uint32_t));
+        memcpy(patterned_input.data(), packed.data(), patterned_input.size() * sizeof(uint32_t));
+    }
+}
+
+void wall_time_large_array_compare_pack_unpack (std::vector<uint32_t>& patterned_input, std::vector<uint32_t>& bit_widths) {
+    for (uint32_t bw: bit_widths) {
+        int out_num = out_bytes_needed(bw, patterned_input.size());
+        std::vector<uint8_t> packed(out_num, 0);
+        byte_pack(patterned_input.data(), packed.data(), bw, patterned_input.size(), out_num);
+        byte_unpack(packed.data(), patterned_input.data(), bw, patterned_input.size());
+    }
+}
+
 int main () {
     /*
     Currently supports bit width 1-8
@@ -97,7 +114,7 @@ int main () {
         pack_unpack_bytes_touched += (sizeof(uint32_t) * const_pattern.size() * 2 + 2 * out_bytes_needed(bw, const_pattern.size()));
     }
 
-    pack_unpack_memory_throughput = (pack_unpack_bytes_touched * 1000) / (wall_time_cache_resident);
+    pack_unpack_memory_throughput = (pack_unpack_bytes_touched) / (wall_time_cache_resident);
 
     std::vector<uint32_t> const_pattern_memcpy(35, 1);
     auto t2 = clk::now();
@@ -106,8 +123,37 @@ int main () {
     double wall_time_memcpy = std::chrono::duration<double, std::milli>(t3 - t2).count();
 
     double memcpy_memory_throughput = 0;
-    memcpy_memory_throughput = (4 * sizeof(uint32_t) * const_pattern_memcpy.size() * 1000) / wall_time_memcpy;
+    memcpy_memory_throughput = (bit_widths.size()) * (4 * sizeof(uint32_t) * const_pattern_memcpy.size()) / wall_time_memcpy;
 
-    std::cout << "Memory throughput (pack/unpack): " << pack_unpack_memory_throughput << " \n";
-    std::cout << "Memory throughput (memcpy): " << memcpy_memory_throughput << " \n";    
+    std::cout << "Memory throughput (pack/unpack): " << pack_unpack_memory_throughput << " GB/s \n";
+    std::cout << "Memory throughput (memcpy): " << memcpy_memory_throughput << " GB/s \n";    
+
+
+    std::vector<uint32_t> const_pattern_large_array(350000, 1);
+    auto t4 = clk::now();
+    wall_time_large_array_compare_pack_unpack (const_pattern_large_array, bit_widths);
+    auto t5 = clk::now();
+    double wall_time_pack_unpack_large_array = std::chrono::duration<double, std::milli>(t5 - t4).count();
+
+    uint32_t pack_unpack_bytes_touched_large_array = 0;
+    double pack_unpack_memory_throughput_large_array = 0;
+
+    for (uint32_t bw: bit_widths) {
+        pack_unpack_bytes_touched_large_array += (sizeof(uint32_t) * const_pattern_large_array.size() * 2 + 2 * out_bytes_needed(bw, const_pattern_large_array.size()));
+    }
+
+    pack_unpack_memory_throughput_large_array = (pack_unpack_bytes_touched_large_array * 1000) / (wall_time_pack_unpack_large_array * 1e9);
+
+    std::vector<uint32_t> const_pattern_memcpy_large_array(350000, 1);
+    auto t6 = clk::now();
+    wall_time_large_array_compare_memcpy (const_pattern_memcpy_large_array, bit_widths);
+    auto t7 = clk::now();
+    double wall_time_memcpy_large_array = std::chrono::duration<double, std::milli>(t7 - t6).count();
+
+    double memcpy_memory_throughput_large_array = 0;
+    memcpy_memory_throughput_large_array = (bit_widths.size()) * (4 * sizeof(uint32_t) * const_pattern_memcpy_large_array.size() * 1000) / (wall_time_memcpy_large_array * 1e9);
+
+    std::cout << "Memory throughput - large array (pack/unpack): " << pack_unpack_memory_throughput_large_array << " GB/s \n";
+    std::cout << "Memory throughput - large array (memcpy): " << memcpy_memory_throughput_large_array << " GB/s \n";    
+
 }
