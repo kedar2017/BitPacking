@@ -74,7 +74,7 @@ int main () {
     /*
     Currently supports bit width 1-8
     */
-    std::vector<uint32_t> bit_widths{2,3,4,5,6,7,8};
+    std::vector<uint32_t> bit_widths{2,3,4,5,6,7,8, 10, 12, 16, 20, 24, 28, 30, 32};
     std::vector<uint32_t> in_nums{2,3,7,15,31,64,255,1024,2047};
     for (uint32_t bw: bit_widths) {
         for (uint32_t in_num: in_nums) {
